@@ -22,14 +22,35 @@
 #include <ESP8266HTTPClient.h>
 #include <Adafruit_INA219.h> 
 
-#define USE_SERIAL Serial
-
 ESP8266WiFiMulti WiFiMulti;
 Adafruit_INA219 sensor219; 
 
+
+#define SAMPLING_PERIOD 1500 //ms
+/* 
+ *  My functions
+ */
+void convertValues(void);
+void preparePostString(void);
+
+/* 
+ *  My variables
+ */
 const char* ssid     = "wificko_n";
 const char* password = "subaruimpreza";
 
+float voltage_V;
+float current_mA;
+float power_mW;
+float rpm;
+
+char post_str[80];
+
+char volt_str[10];
+char curr_str[10];
+char pow_str[10];
+char rpm_str[10];
+ 
 void setup() {
 
   Serial.begin(115200);
@@ -54,38 +75,78 @@ void loop() {
   // wait for WiFi connection
   if ((WiFiMulti.run() == WL_CONNECTED)) {
 
-    HTTPClient http;
+  voltage_V=12.23;
+  current_mA=186.4;
+  power_mW=1256.25;
+  rpm=125.5;
 
-    Serial.print("[HTTP] begin...\n");
-    // configure traged server and url
-    //http.begin("https://192.168.1.12/test.html", "7a 9c f4 db 40 d3 62 5a 6e 21 bc 5c cc 66 c8 3e a1 45 59 38"); //HTTPS
-    http.begin("http://192.168.1.12/test.html"); //HTTP
-
-    Serial.print("[HTTP] GET...\n");
-    // start connection and send HTTP header
-    int httpCode = http.GET();
-
-    // httpCode will be negative on error
-    if (httpCode > 0) {
-      // HTTP header has been send and Server response header has been handled
-      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-      // file found at server
-      if (httpCode == HTTP_CODE_OK) {
-        String payload = http.getString();
-        Serial.println(payload);
-      }
-    } else {
-      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-    }
-
-    http.end();
+  convertValues();
+  preparePostString();
+  sendHttpPost();
+  
   }
   else
   {
-    Serial.printf("Wifi connection failed");
+    Serial.printf("Waiting for WiFi connection");
     delay(5000);
   }
 
-  delay(10000);
+  delay(SAMPLING_PERIOD);
+}
+
+void convertValues(void){
+
+  dtostrf(voltage_V, 4, 2, volt_str);  
+  dtostrf(current_mA, 4, 2, curr_str);  
+  dtostrf(power_mW, 4, 2, pow_str); 
+  dtostrf(rpm, 4, 2, rpm_str); 
+  
+}
+
+void preparePostString(void){
+
+  char vol_par[] = "VOL=";
+  char cur_par[] = "&CUR=";
+  char pow_par[] = "&POW=";
+  char rpm_par[] = "&RPM=";
+
+  post_str[0] = '\0';
+  strcat(post_str,vol_par);
+  strcat(post_str,volt_str);
+  strcat(post_str,cur_par);
+  strcat(post_str,curr_str);
+  strcat(post_str,pow_par);
+  strcat(post_str,pow_str);
+  strcat(post_str,rpm_par);
+  strcat(post_str,rpm_str);
+  
+  Serial.println(post_str);
+
+}
+
+void sendHttpPost(void){
+
+ HTTPClient http;
+ 
+ http.begin("http://albre.jemivedro.cz/read_hamster.php");  
+ http.addHeader("Content-Type", "application/x-www-form-urlencoded"); 
+
+ int httpResponseCode = http.POST(post_str);   
+ 
+ if(httpResponseCode>0)
+ {
+
+  String response = http.getString();                       
+  Serial.println(httpResponseCode);   
+  Serial.println(response);           
+
+ }
+ else{
+
+  Serial.print("Error on sending POST: ");
+  Serial.println(httpResponseCode);
+
+ }
+
+ http.end(); 
 }
