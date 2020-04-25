@@ -11,7 +11,7 @@ require_once 'config_db.php';
 // echo "<br>";
 	
 //Check if all fields are present
-$postDataPresent = isset($_POST['VOL']) && isset($_POST['CUR']) && isset($_POST['POW']);
+$postDataPresent = isset($_POST['VOL']) && isset($_POST['CUR']) && isset($_POST['POW']) && isset($_POST['RPM']);
 
 if($postDataPresent != true)
 {
@@ -22,9 +22,10 @@ if($postDataPresent != true)
 $vol_raw = htmlspecialchars($_POST['VOL']);
 $cur_raw = htmlspecialchars($_POST['CUR']);
 $pow_raw = htmlspecialchars($_POST['POW']);
+$rpm_raw = htmlspecialchars($_POST['RPM']);
   
 //Check if the received data is valid
-$datasetValid = is_numeric($vol_raw) && is_numeric($cur_raw) && is_numeric($pow_raw);
+$datasetValid = is_numeric($vol_raw) && is_numeric($cur_raw) && is_numeric($pow_raw) && is_numeric($rpm_raw);
   				   		
 if($datasetValid != true)
 {
@@ -35,6 +36,7 @@ if($datasetValid != true)
 $vol = floatval($vol_raw);
 $cur = floatval($cur_raw);
 $pow = floatval($pow_raw);
+$rpm = floatval($rpm_raw);
 
 /* Prepare MqSQL stuff*/
 // Attempt to connect to MySQL database
@@ -47,7 +49,7 @@ if($dbLink === false)
 }
 
 // Prepare an insert statement
-$sql = "INSERT INTO wifiSolarPower (voltage, current, power) VALUES (?, ?, ?)";
+$sql = "INSERT INTO hamsterPower (voltage, current, power, rpm) VALUES (?, ?, ?, ?)";
 
 
 $stmt = mysqli_prepare ($dbLink, $sql);
@@ -58,7 +60,7 @@ if($stmt == false)
 }
 
 // Bind variables to the prepared statement as parameters
-mysqli_stmt_bind_param($stmt, "ddd", $vol, $cur, $pow);
+mysqli_stmt_bind_param($stmt, "dddd", $vol, $cur, $pow, $rpm);
 
 // Attempt to execute the prepared statement
 if (mysqli_stmt_execute ($stmt)) 
