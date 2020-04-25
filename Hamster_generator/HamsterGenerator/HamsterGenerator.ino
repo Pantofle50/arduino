@@ -16,6 +16,7 @@
  */
 
 #include <Arduino.h>
+#include <Ticker.h>
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
@@ -27,17 +28,23 @@ Adafruit_INA219 sensor219;
 
 
 #define SAMPLING_PERIOD 1500 //ms
+
+#define RPM_IN_PIN 0 //(physical pin D3)
+
 /* 
  *  My functions
  */
+void rpmFallEdgeISR(void);
 void convertValues(void);
 void preparePostString(void);
-
 /* 
  *  My variables
  */
 const char* ssid     = "wificko_n";
 const char* password = "subaruimpreza";
+
+volatile long t_end, t_diff, tim;
+volatile int updated;
 
 float voltage_V;
 float current_mA;
@@ -60,6 +67,14 @@ void setup() {
   Serial.println();
   Serial.println();
 
+  voltage_V = 0;
+  current_mA = 0;
+  power_mW = 0;
+  rpm = 0;
+
+  pinMode(RPM_IN_PIN, INPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+
   for (uint8_t t = 4; t > 0; t--) {
     Serial.printf("[SETUP] WAIT %d...\n", t);
     Serial.flush();
@@ -69,21 +84,27 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFiMulti.addAP(ssid, password);
 
+  t_end = 0;
+  t_diff = 0;
+  tim = 0;
+  updated = 0;
+
+  timer1_enable(TIM_DIV256 , TIM_EDGE  , TIM_LOOP   );
+  timer1_write(8388607);
+  
+  attachInterrupt(digitalPinToInterrupt(RPM_IN_PIN), rpmFallEdgeISR, FALLING);
 }
 
 void loop() {
   // wait for WiFi connection
   if ((WiFiMulti.run() == WL_CONNECTED)) {
 
-  voltage_V=12.23;
-  current_mA=186.4;
-  power_mW=1256.25;
-  rpm=125.5;
-
-  convertValues();
-  preparePostString();
-  sendHttpPost();
-  
+    if(rpm > 0){
+      convertValues();
+      preparePostString();
+      sendHttpPost();
+      rpm = 0;
+    }
   }
   else
   {
@@ -91,7 +112,23 @@ void loop() {
     delay(5000);
   }
 
+  if(updated == 1)
+  {
+    rpm = 60 /((t_diff)*0.0000032);
+    updated = 0;
+
+  }
+  
   delay(SAMPLING_PERIOD);
+}
+
+void rpmFallEdgeISR(void){
+
+  tim = timer1_read();
+  t_diff = t_end - tim;
+  t_end = tim;  
+  digitalWrite(LED_BUILTIN,!(digitalRead(LED_BUILTIN))); 
+  updated = 1;
 }
 
 void convertValues(void){
