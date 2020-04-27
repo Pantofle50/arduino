@@ -28,6 +28,7 @@ Adafruit_INA219 sensor219;
 
 
 #define SAMPLING_PERIOD 1500 //ms
+#define RPM_MAX_LIMIT 240 //
 
 #define RPM_IN_PIN 0 //(physical pin D3)
 
@@ -99,7 +100,7 @@ void loop() {
   // wait for WiFi connection
   if ((WiFiMulti.run() == WL_CONNECTED)) {
 
-    if(rpm > 0){
+    if((rpm > 0) && (rpm < RPM_MAX_LIMIT)){
       convertValues();
       preparePostString();
       sendHttpPost();
