@@ -140,7 +140,67 @@
 		$entry_pow .= "[new Date(".strtotime($row{'timestamp'})."*1000)".",".$row{'power'}."],";
 		$entry_rpm .= "[new Date(".strtotime($row{'timestamp'})."*1000)".",".$row{'rpm'}."],";
 	}
+	
+	$vol_sum = 0;
+	$curr_sum = 0;
+	$pow_sum = 0;
+	$rpm_sum = 0;
+	$mah = 0;
+	$distance = 0;
+	$pow_max = 0;
+	$rpm_max = 0;
+	
+	for	($i = 0; $i<($num_of_rows-1); $i++) {
+	
+		$result->data_seek($i);
+		$row = $result->fetch_array(MYSQLI_ASSOC);
 		
+		if($i == 0) {
+			$start = strtotime($row{'timestamp'});
+		}
+		if($i == ($num_of_rows-2)) {
+			$end = strtotime($row{'timestamp'});
+		}
+		
+		if($row{'power'} > $pow_max) {
+			$pow_max = $row{'power'}; 
+		}
+		if($row{'rpm'} > $rpm_max) {
+			$rpm_max = $row{'rpm'}; 
+		}
+		
+		$vol_sum = $vol_sum + ($row{'voltage'});
+		$curr_sum = $curr_sum + ($row{'current'});
+		$pow_sum = $pow_sum + ($row{'power'});
+		$rpm_sum = $rpm_sum + ($row{'rpm'});
+		
+		$rpm_1 = $row{'rpm'};
+		$curr_1 = $row{'current'};
+		$date_1 = strtotime($row{'timestamp'});
+		
+		$result->data_seek($i+1);
+		$row = $result->fetch_array(MYSQLI_ASSOC);
+		$rpm_2 = $row{'rpm'};
+		$curr_2 = $row{'current'};
+		$date_2 = strtotime($row{'timestamp'});
+		
+		$distance = $distance + (($rpm_1 + $rpm_2)*3.1416*0.27)/60/2 * ($date_2 - $date_1);
+		$mah = $mah + ($curr_1 + $curr_2)/2 * ($date_2 - $date_1)/60/60;
+
+	}	
+	
+	$diff = ($end - $start)/60/60;
+	$mean_pow = $pow_sum/($num_of_rows-2);
+	$mean_rpm = $rpm_sum/($num_of_rows-2);
+		
+	echo sprintf("Hours shown: %4.2f hr. ",$diff);
+	echo sprintf("Mean power: %4.2f mW. ",$mean_pow);
+	echo sprintf("Peak power: %4.2f mW. ",$pow_max);
+	echo sprintf("Mean rpm: %4.2f rpm. ",$mean_rpm);
+	echo sprintf("Peak rpm: %4.2f rpm. ",$rpm_max);
+	echo sprintf("Total mAh: %4.2f rpm. ",$mah);
+	echo sprintf("Total distance: %4.2f m. ",$distance);
+	
 	/* free results */
 	mysqli_free_result($stmt);
 	
@@ -337,7 +397,7 @@
 					colors: ["brown"],
 				};
 	
-				var chart = new google.visualization.LineChart(document.getElementById('curve_chart_pow'));
+				var chart = new google.visualization.LineChart(document.getElementById('curve_chart_rpm'));
 	
 	      		chart.draw(data, options);
 	    	}
@@ -379,6 +439,21 @@
 	    		echo "<div class=\"wrapper\" id=\"curve_chart_pow\" style=\"width: 1200px; height: 500px\"></div>";
     	?>
 		</div>
+		<div class="col-md-1"></div>
+		
+		</div>
+		
+		<div class="row">
+    	
+    	<div class="col-md-1"></div>
+    	<div class="col-md-1"></div>
+    	<div class="col-md-4">
+    	<?php 
+	    		echo "<div class=\"wrapper\" id=\"curve_chart_rpm\" style=\"width: 1200px; height: 500px\"></div>";
+    	?>
+		</div>
+		<div class="col-md-1"></div>
+		
 		<div class="col-md-1"></div>
 		
 		</div>
