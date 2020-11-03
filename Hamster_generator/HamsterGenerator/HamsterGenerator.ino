@@ -20,44 +20,26 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
-#include <ESP8266HTTPClient.h>
-#include <Adafruit_INA219.h> 
+
+#include "DataTransmitter.h"
+#include "GlobalDefs.h"
+#include "DataLogger.h"
 
 ESP8266WiFiMulti WiFiMulti;
-Adafruit_INA219 sensor219; 
-
-
-#define SAMPLING_PERIOD 1500 //ms
-#define RPM_MAX_LIMIT 240 //
-
-#define RPM_IN_PIN 0 //(physical pin D3)
 
 /* 
  *  My functions
  */
 void rpmFallEdgeISR(void);
-void convertValues(void);
-void preparePostString(void);
+
 /* 
  *  My variables
  */
-const char* ssid     = "wificko_n";
-const char* password = "subaruimpreza";
 
 volatile long t_end, t_diff, tim;
 volatile int updated;
 
-float voltage_V;
-float current_mA;
-float power_mW;
-float rpm;
-
-char post_str[80];
-
-char volt_str[10];
-char curr_str[10];
-char pow_str[10];
-char rpm_str[10];
+Record_t temp_record;
  
 void setup() {
 
@@ -68,11 +50,13 @@ void setup() {
   Serial.println();
   Serial.println();
 
-  voltage_V = 0;
-  current_mA = 0;
-  power_mW = 0;
-  rpm = 0;
+  //Temporary record variable init
+  temp_record.voltage_V = 0;
+  temp_record.current_mA = 0;
+  temp_record.power_mW = 0;
+  temp_record.rpm = 0;
 
+  //GPIO init
   pinMode(RPM_IN_PIN, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -83,8 +67,9 @@ void setup() {
   }
 
   WiFi.mode(WIFI_STA);
-  WiFiMulti.addAP(ssid, password);
+  WiFiMulti.addAP(NETNAME, PWD);
 
+  //Timer variables init
   t_end = 0;
   t_diff = 0;
   tim = 0;
@@ -100,12 +85,12 @@ void loop() {
   // wait for WiFi connection
   if ((WiFiMulti.run() == WL_CONNECTED)) {
 
-    if((rpm > 0) && (rpm < RPM_MAX_LIMIT)){
-      convertValues();
-      preparePostString();
-      sendHttpPost();
-      rpm = 0;
-    }
+//    if((current_record.rpm > 0) && (current_record.rpm < RPM_MAX_LIMIT)){
+//      //convertValues(&current_record);
+//      preparePostString();
+//      sendHttpPost();
+//      //current_record.rpm = 0;
+//    }
   }
   else
   {
@@ -115,7 +100,30 @@ void loop() {
 
   if(updated == 1)
   {
-    rpm = 60 /((t_diff)*0.0000032);
+    temp_record.rpm = 60 /((t_diff)*0.0000032);
+    temp_record.rpm = temp_record.rpm / POLE_PAIRS;
+
+    if((temp_record.rpm > 0) && (temp_record.rpm < RPM_MAX_LIMIT)){
+   
+      //TODO update the rest
+      //temp_record.voltage_V = 0;
+      //temp_record.current_mA = 0;
+      //temp_record.power_mW = 0;
+  
+      logSaveRecord(&temp_record);
+  
+      //Send the data!
+      logGetRecord(&temp_record);
+      convertValues(&temp_record);
+      preparePostString();
+      sendHttpPost();
+
+    }
+    else
+    {
+      //Rpm value out of limits - ignore it
+    }
+
     updated = 0;
 
   }
@@ -130,61 +138,4 @@ void rpmFallEdgeISR(void){
   t_end = tim;  
   digitalWrite(LED_BUILTIN,!(digitalRead(LED_BUILTIN))); 
   updated = 1;
-}
-
-void convertValues(void){
-
-  dtostrf(voltage_V, 4, 2, volt_str);  
-  dtostrf(current_mA, 4, 2, curr_str);  
-  dtostrf(power_mW, 4, 2, pow_str); 
-  dtostrf(rpm, 4, 2, rpm_str); 
-  
-}
-
-void preparePostString(void){
-
-  char vol_par[] = "VOL=";
-  char cur_par[] = "&CUR=";
-  char pow_par[] = "&POW=";
-  char rpm_par[] = "&RPM=";
-
-  post_str[0] = '\0';
-  strcat(post_str,vol_par);
-  strcat(post_str,volt_str);
-  strcat(post_str,cur_par);
-  strcat(post_str,curr_str);
-  strcat(post_str,pow_par);
-  strcat(post_str,pow_str);
-  strcat(post_str,rpm_par);
-  strcat(post_str,rpm_str);
-  
-  Serial.println(post_str);
-
-}
-
-void sendHttpPost(void){
-
- HTTPClient http;
- 
- http.begin("http://albre.jemivedro.cz/read_hamster.php");  
- http.addHeader("Content-Type", "application/x-www-form-urlencoded"); 
-
- int httpResponseCode = http.POST(post_str);   
- 
- if(httpResponseCode>0)
- {
-
-  String response = http.getString();                       
-  Serial.println(httpResponseCode);   
-  Serial.println(response);           
-
- }
- else{
-
-  Serial.print("Error on sending POST: ");
-  Serial.println(httpResponseCode);
-
- }
-
- http.end(); 
 }
